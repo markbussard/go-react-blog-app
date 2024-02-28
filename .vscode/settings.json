@@ -1,0 +1,30 @@
+{
+  "editor.tabSize": 2,
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "always"
+    },
+    "editor.formatOnSave": true,
+    "typescript.preferences.importModuleSpecifier": "shortest"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "always"
+    },
+    "editor.formatOnSave": true,
+    "typescript.preferences.importModuleSpecifier": "shortest"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "always"
+    },
+    "editor.formatOnSave": true,
+  },
+  "[go]": {
+    "editor.formatOnSave": true
+  },
+  "css.lint.unknownAtRules": "ignore"
+}
