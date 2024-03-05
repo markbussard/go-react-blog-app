@@ -1,15 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 
 import { axios } from "~/lib";
-import { Post } from "./types";
+import { type GetPostsResponse } from "./types";
 
-const getPosts = async (): Promise<Post[]> => {
-  return axios.get("/posts");
+const getPosts = async (offset: number): Promise<GetPostsResponse> => {
+  return axios.get(`/posts?offset=${offset}`);
 };
 
-export const usePosts = () => {
-  return useQuery({
-    queryKey: ["posts"],
-    queryFn: getPosts,
+export const postsOptions = (offset: number) =>
+  queryOptions({
+    queryKey: ["posts", offset],
+    queryFn: () => getPosts(offset),
   });
-};
