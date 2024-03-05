@@ -1,7 +1,8 @@
 package server
 
 import (
-	"fmt"
+	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -21,20 +22,40 @@ func (srv *server) withEnv(h srvHandlerWithEnv) http.HandlerFunc {
 
 func (srv *server) withUserAndEnv(h srvHandlerWithUserAndEnv) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(srv.env.UserContextKey()).(db.User)
+		if !ok {
+			write.Error(w, 401, "Not authorized")
+			return
+		}
+
+		h(srv.env, user, w, r)
+	}
+}
+
+func (srv *server) LoadUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		token := strings.Replace(authHeader, "Bearer ", "", 1)
 
 		idToken, err := srv.env.Auth().VerifyIDToken(r.Context(), token)
 		if err != nil {
-			write.Error(w, 400, fmt.Sprintf("Token verification failed: %v", err))
+			next.ServeHTTP(w, r)
 			return
 		}
 
 		user, err := srv.env.DB().FindUserByAuthID(r.Context(), idToken.UID)
 		if err != nil {
-			write.Error(w, 400, fmt.Sprintf("Failed to fetch user: %v", err))
+			next.ServeHTTP(w, r)
+			return
 		}
 
-		h(srv.env, user, w, r)
-	}
+		ctx := context.WithValue(r.Context(), srv.env.UserContextKey(), user)
+
+		user, ok := ctx.Value(srv.env.UserContextKey()).(db.User)
+		if ok {
+			log.Printf("context user loaded: %v\n", user.Email)
+		}
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
