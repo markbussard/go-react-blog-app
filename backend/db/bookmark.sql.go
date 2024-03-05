@@ -12,7 +12,7 @@ import (
 )
 
 const createBookmark = `-- name: CreateBookmark :one
-INSERT INTO bookmark (user_id, post_id) VALUES ($1, $2) RETURNING id, user_id, post_id, created_at, updated_at
+INSERT INTO bookmark (user_id, post_id) VALUES ($1, $2) RETURNING id, user_id, post_id, created_at
 `
 
 type CreateBookmarkParams struct {
@@ -28,13 +28,76 @@ func (q *Queries) CreateBookmark(ctx context.Context, arg CreateBookmarkParams) 
 		&i.UserID,
 		&i.PostID,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
 
+const deleteBookmarkByIDs = `-- name: DeleteBookmarkByIDs :exec
+DELETE FROM bookmark WHERE user_id = $1 AND post_id = $2
+`
+
+type DeleteBookmarkByIDsParams struct {
+	UserID uuid.UUID `json:"userId"`
+	PostID uuid.UUID `json:"postId"`
+}
+
+func (q *Queries) DeleteBookmarkByIDs(ctx context.Context, arg DeleteBookmarkByIDsParams) error {
+	_, err := q.db.Exec(ctx, deleteBookmarkByIDs, arg.UserID, arg.PostID)
+	return err
+}
+
+const findBookmarkByIDs = `-- name: FindBookmarkByIDs :one
+SELECT id, user_id, post_id, created_at FROM bookmark WHERE user_id = $1 AND post_id = $2 LIMIT 1
+`
+
+type FindBookmarkByIDsParams struct {
+	UserID uuid.UUID `json:"userId"`
+	PostID uuid.UUID `json:"postId"`
+}
+
+func (q *Queries) FindBookmarkByIDs(ctx context.Context, arg FindBookmarkByIDsParams) (Bookmark, error) {
+	row := q.db.QueryRow(ctx, findBookmarkByIDs, arg.UserID, arg.PostID)
+	var i Bookmark
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.PostID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const findBookmarksByPostID = `-- name: FindBookmarksByPostID :many
+SELECT id, user_id, post_id, created_at FROM bookmark WHERE post_id = $1 ORDER BY created_at DESC
+`
+
+func (q *Queries) FindBookmarksByPostID(ctx context.Context, postID uuid.UUID) ([]Bookmark, error) {
+	rows, err := q.db.Query(ctx, findBookmarksByPostID, postID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Bookmark{}
+	for rows.Next() {
+		var i Bookmark
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.PostID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findBookmarksByUserID = `-- name: FindBookmarksByUserID :many
-SELECT id, user_id, post_id, created_at, updated_at FROM bookmark WHERE user_id = $1 ORDER BY id DESC
+SELECT id, user_id, post_id, created_at FROM bookmark WHERE user_id = $1 ORDER BY id DESC
 `
 
 func (q *Queries) FindBookmarksByUserID(ctx context.Context, userID uuid.UUID) ([]Bookmark, error) {
@@ -51,7 +114,6 @@ func (q *Queries) FindBookmarksByUserID(ctx context.Context, userID uuid.UUID) (
 			&i.UserID,
 			&i.PostID,
 			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
