@@ -2,6 +2,7 @@ module.exports = {
   root: true,
   env: {
     browser: true,
+    node: true,
     es2024: true,
   },
   extends: [
@@ -32,7 +33,7 @@ module.exports = {
   rules: {
     "react-refresh/only-export-components": [
       "warn",
-      { allowConstantExport: true },
+      { allowConstantExport: true, allowExportNames: ["loader"] },
     ],
     "@typescript-eslint/consistent-type-imports": [
       "error",
@@ -40,6 +41,7 @@ module.exports = {
         fixStyle: "inline-type-imports",
       },
     ],
+    "@typescript-eslint/no-var-requires": "off",
     "react/react-in-jsx-scope": "off",
   },
 };

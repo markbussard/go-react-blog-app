@@ -10,7 +10,7 @@ const config = {
   tabWidth: 2,
   useTabs: false,
   bracketSameLine: false,
-  tailwindConfig: "./tailwind.config.ts",
+  tailwindConfig: "./tailwind.config.js",
   plugins: [
     "@ianvs/prettier-plugin-sort-imports",
     "prettier-plugin-tailwindcss",
