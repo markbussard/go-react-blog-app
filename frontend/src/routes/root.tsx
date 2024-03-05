@@ -1,9 +1,12 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, ScrollRestoration } from "react-router-dom";
+
+import { AppLayout } from "~/components";
 
 export const Root = () => {
   return (
-    <div>
+    <AppLayout>
       <Outlet />
-    </div>
+      <ScrollRestoration />
+    </AppLayout>
   );
 };

@@ -12,14 +12,27 @@ import (
 
 type Querier interface {
 	CreateBookmark(ctx context.Context, arg CreateBookmarkParams) (Bookmark, error)
+	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
+	CreateLike(ctx context.Context, arg CreateLikeParams) (Like, error)
 	CreatePost(ctx context.Context, arg CreatePostParams) (Post, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteBookmarkByIDs(ctx context.Context, arg DeleteBookmarkByIDsParams) error
+	DeleteCommentByIDs(ctx context.Context, arg DeleteCommentByIDsParams) error
+	DeleteLike(ctx context.Context, arg DeleteLikeParams) error
 	DeletePostByIDs(ctx context.Context, arg DeletePostByIDsParams) error
+	FindBookmarkByIDs(ctx context.Context, arg FindBookmarkByIDsParams) (Bookmark, error)
+	FindBookmarksByPostID(ctx context.Context, postID uuid.UUID) ([]Bookmark, error)
 	FindBookmarksByUserID(ctx context.Context, userID uuid.UUID) ([]Bookmark, error)
+	FindCommentsByPostID(ctx context.Context, postID uuid.UUID) ([]FindCommentsByPostIDRow, error)
+	FindCommentsWithLikedByUser(ctx context.Context, arg FindCommentsWithLikedByUserParams) ([]FindCommentsWithLikedByUserRow, error)
+	FindLikesByLikeableID(ctx context.Context, arg FindLikesByLikeableIDParams) ([]Like, error)
 	FindPostByIDs(ctx context.Context, arg FindPostByIDsParams) (Post, error)
+	FindPostBySlug(ctx context.Context, slug string) (FindPostBySlugRow, error)
+	FindPostBySlugWithLikedByUser(ctx context.Context, arg FindPostBySlugWithLikedByUserParams) (FindPostBySlugWithLikedByUserRow, error)
 	FindPostsByAuthor(ctx context.Context, authorID uuid.UUID) ([]Post, error)
 	FindUserByAuthID(ctx context.Context, authID string) (User, error)
 	GetPosts(ctx context.Context, offset int32) ([]GetPostsRow, error)
+	UpdateComment(ctx context.Context, arg UpdateCommentParams) (Comment, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
 }
 

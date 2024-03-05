@@ -1,4 +1,4 @@
-import { DefaultOptions, QueryClient } from "@tanstack/react-query";
+import { QueryClient, type DefaultOptions } from "@tanstack/react-query";
 
 const defaultOptions: DefaultOptions = {
   queries: {

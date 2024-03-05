@@ -1,8 +1,6 @@
 package server
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -32,12 +30,6 @@ func New() (*http.Server, error) {
 		env: env,
 	}
 
-	authUser, err := srv.env.Auth().GetUserByEmail(context.Background(), "markbussard@outlook.com")
-	if err != nil {
-		fmt.Printf("error occurred retrieving auth user by email: %v", err)
-	}
-
-	fmt.Printf("authUser: %s\n", authUser.UID)
 	srv.ConfigureRouter()
 
 	server := &http.Server{

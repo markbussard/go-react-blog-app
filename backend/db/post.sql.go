@@ -13,28 +13,37 @@ import (
 )
 
 const createPost = `-- name: CreatePost :one
-INSERT INTO post (author_id, title, body, status) VALUES ($1, $2, $3, $4) RETURNING id, author_id, title, body, status, created_at, updated_at, deleted_at
+INSERT INTO post (author_id, slug, title, subtitle, body, tags, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, author_id, slug, title, subtitle, tags, body, status, created_at, updated_at, deleted_at
 `
 
 type CreatePostParams struct {
 	AuthorID uuid.UUID  `json:"authorId"`
+	Slug     string     `json:"slug"`
 	Title    string     `json:"title"`
+	Subtitle string     `json:"subtitle"`
 	Body     string     `json:"body"`
+	Tags     []PostTag  `json:"tags"`
 	Status   PostStatus `json:"status"`
 }
 
 func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, error) {
 	row := q.db.QueryRow(ctx, createPost,
 		arg.AuthorID,
+		arg.Slug,
 		arg.Title,
+		arg.Subtitle,
 		arg.Body,
+		arg.Tags,
 		arg.Status,
 	)
 	var i Post
 	err := row.Scan(
 		&i.ID,
 		&i.AuthorID,
+		&i.Slug,
 		&i.Title,
+		&i.Subtitle,
+		&i.Tags,
 		&i.Body,
 		&i.Status,
 		&i.CreatedAt,
@@ -59,7 +68,7 @@ func (q *Queries) DeletePostByIDs(ctx context.Context, arg DeletePostByIDsParams
 }
 
 const findPostByIDs = `-- name: FindPostByIDs :one
-SELECT id, author_id, title, body, status, created_at, updated_at, deleted_at FROM post WHERE author_id = $1 AND id = $2 LIMIT 1
+SELECT id, author_id, slug, title, subtitle, tags, body, status, created_at, updated_at, deleted_at FROM post WHERE author_id = $1 AND id = $2 LIMIT 1
 `
 
 type FindPostByIDsParams struct {
@@ -73,7 +82,10 @@ func (q *Queries) FindPostByIDs(ctx context.Context, arg FindPostByIDsParams) (P
 	err := row.Scan(
 		&i.ID,
 		&i.AuthorID,
+		&i.Slug,
 		&i.Title,
+		&i.Subtitle,
+		&i.Tags,
 		&i.Body,
 		&i.Status,
 		&i.CreatedAt,
@@ -83,8 +95,127 @@ func (q *Queries) FindPostByIDs(ctx context.Context, arg FindPostByIDsParams) (P
 	return i, err
 }
 
+const findPostBySlug = `-- name: FindPostBySlug :one
+SELECT 
+  post.id, 
+  post.slug, 
+  post.title, 
+  post.subtitle, 
+  post.body, 
+  post.tags::text[] as tags, 
+  post.created_at, 
+  post.updated_at, 
+  "user".email as author_email,
+  COUNT(DISTINCT "like".id) as like_count,
+  COUNT(DISTINCT comment.id) as comment_count
+FROM post 
+LEFT JOIN "user" ON post.author_id = "user".id
+LEFT JOIN "like" ON post.id = "like".likeable_id AND "like".likeable_type = 'POST'
+LEFT JOIN comment ON post.id = comment.post_id
+WHERE post.slug = $1 AND post.deleted_at is null AND post.status = 'PUBLISHED'
+GROUP BY post.id, post.slug, post.title, post.subtitle, post.body, post.tags, post.created_at, post.updated_at, "user".email
+LIMIT 1
+`
+
+type FindPostBySlugRow struct {
+	ID           uuid.UUID        `json:"id"`
+	Slug         string           `json:"slug"`
+	Title        string           `json:"title"`
+	Subtitle     string           `json:"subtitle"`
+	Body         string           `json:"body"`
+	Tags         []string         `json:"tags"`
+	CreatedAt    pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
+	AuthorEmail  pgtype.Text      `json:"authorEmail"`
+	LikeCount    int64            `json:"likeCount"`
+	CommentCount int64            `json:"commentCount"`
+}
+
+func (q *Queries) FindPostBySlug(ctx context.Context, slug string) (FindPostBySlugRow, error) {
+	row := q.db.QueryRow(ctx, findPostBySlug, slug)
+	var i FindPostBySlugRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.Subtitle,
+		&i.Body,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AuthorEmail,
+		&i.LikeCount,
+		&i.CommentCount,
+	)
+	return i, err
+}
+
+const findPostBySlugWithLikedByUser = `-- name: FindPostBySlugWithLikedByUser :one
+SELECT 
+  post.id, 
+  post.slug, 
+  post.title, 
+  post.subtitle, 
+  post.body, 
+  post.tags::text[] as tags, 
+  post.created_at, 
+  post.updated_at, 
+  "user".email as author_email,
+  COUNT(DISTINCT "like".id) as like_count,
+  COUNT(DISTINCT comment.id) as comment_count,
+  CASE WHEN COUNT(DISTINCT liked_by_user.id) > 0 THEN true ELSE false END as is_liked
+FROM post
+LEFT JOIN "user" ON post.author_id = "user".id
+LEFT JOIN "like" ON post.id = "like".likeable_id AND "like".likeable_type = 'POST'
+LEFT JOIN comment ON post.id = comment.post_id
+LEFT JOIN "like" as liked_by_user ON post.id = liked_by_user.likeable_id AND liked_by_user.likeable_type = 'POST' AND liked_by_user.user_id = $2
+WHERE post.slug = $1 AND post.deleted_at is null AND post.status = 'PUBLISHED'
+GROUP BY post.id, post.slug, post.title, post.subtitle, post.body, post.tags, post.created_at, post.updated_at, "user".email
+LIMIT 1
+`
+
+type FindPostBySlugWithLikedByUserParams struct {
+	Slug   string    `json:"slug"`
+	UserID uuid.UUID `json:"userId"`
+}
+
+type FindPostBySlugWithLikedByUserRow struct {
+	ID           uuid.UUID        `json:"id"`
+	Slug         string           `json:"slug"`
+	Title        string           `json:"title"`
+	Subtitle     string           `json:"subtitle"`
+	Body         string           `json:"body"`
+	Tags         []string         `json:"tags"`
+	CreatedAt    pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
+	AuthorEmail  pgtype.Text      `json:"authorEmail"`
+	LikeCount    int64            `json:"likeCount"`
+	CommentCount int64            `json:"commentCount"`
+	IsLiked      bool             `json:"isLiked"`
+}
+
+func (q *Queries) FindPostBySlugWithLikedByUser(ctx context.Context, arg FindPostBySlugWithLikedByUserParams) (FindPostBySlugWithLikedByUserRow, error) {
+	row := q.db.QueryRow(ctx, findPostBySlugWithLikedByUser, arg.Slug, arg.UserID)
+	var i FindPostBySlugWithLikedByUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.Subtitle,
+		&i.Body,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AuthorEmail,
+		&i.LikeCount,
+		&i.CommentCount,
+		&i.IsLiked,
+	)
+	return i, err
+}
+
 const findPostsByAuthor = `-- name: FindPostsByAuthor :many
-SELECT id, author_id, title, body, status, created_at, updated_at, deleted_at FROM post WHERE author_id = $1 ORDER BY id DESC
+SELECT id, author_id, slug, title, subtitle, tags, body, status, created_at, updated_at, deleted_at FROM post WHERE author_id = $1 AND deleted_at is null ORDER BY updated_at DESC
 `
 
 func (q *Queries) FindPostsByAuthor(ctx context.Context, authorID uuid.UUID) ([]Post, error) {
@@ -99,7 +230,10 @@ func (q *Queries) FindPostsByAuthor(ctx context.Context, authorID uuid.UUID) ([]
 		if err := rows.Scan(
 			&i.ID,
 			&i.AuthorID,
+			&i.Slug,
 			&i.Title,
+			&i.Subtitle,
+			&i.Tags,
 			&i.Body,
 			&i.Status,
 			&i.CreatedAt,
@@ -117,18 +251,28 @@ func (q *Queries) FindPostsByAuthor(ctx context.Context, authorID uuid.UUID) ([]
 }
 
 const getPosts = `-- name: GetPosts :many
-SELECT post.id, post.title, post.body, post.created_at, post.updated_at, "user".email as author_email
+SELECT 
+  post.id, 
+  post.slug, 
+  post.title, 
+  post.subtitle, 
+  post.tags::text[] as tags, 
+  post.created_at, 
+  post.updated_at, 
+  "user".email as author_email
 FROM post
 LEFT JOIN "user" ON post.author_id = "user".id
 WHERE deleted_at is null AND status = 'PUBLISHED'
-ORDER BY post.created_at DESC
+ORDER BY post.updated_at DESC
 LIMIT 5 OFFSET $1
 `
 
 type GetPostsRow struct {
 	ID          uuid.UUID        `json:"id"`
+	Slug        string           `json:"slug"`
 	Title       string           `json:"title"`
-	Body        string           `json:"body"`
+	Subtitle    string           `json:"subtitle"`
+	Tags        []string         `json:"tags"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
 	AuthorEmail pgtype.Text      `json:"authorEmail"`
@@ -145,8 +289,10 @@ func (q *Queries) GetPosts(ctx context.Context, offset int32) ([]GetPostsRow, er
 		var i GetPostsRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.Slug,
 			&i.Title,
-			&i.Body,
+			&i.Subtitle,
+			&i.Tags,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.AuthorEmail,
@@ -162,14 +308,23 @@ func (q *Queries) GetPosts(ctx context.Context, offset int32) ([]GetPostsRow, er
 }
 
 const updatePost = `-- name: UpdatePost :one
-UPDATE post SET title = $3, body = $4, updated_at = NOW() WHERE id = $1 AND author_id = $2 RETURNING id, author_id, title, body, status, created_at, updated_at, deleted_at
+UPDATE post 
+SET 
+  title = $3, 
+  subtitle = $4, 
+  body = $5,
+  tags = $6, 
+  updated_at = NOW() 
+WHERE id = $1 AND author_id = $2 RETURNING id, author_id, slug, title, subtitle, tags, body, status, created_at, updated_at, deleted_at
 `
 
 type UpdatePostParams struct {
 	ID       uuid.UUID `json:"id"`
 	AuthorID uuid.UUID `json:"authorId"`
 	Title    string    `json:"title"`
+	Subtitle string    `json:"subtitle"`
 	Body     string    `json:"body"`
+	Tags     []PostTag `json:"tags"`
 }
 
 func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error) {
@@ -177,13 +332,18 @@ func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, e
 		arg.ID,
 		arg.AuthorID,
 		arg.Title,
+		arg.Subtitle,
 		arg.Body,
+		arg.Tags,
 	)
 	var i Post
 	err := row.Scan(
 		&i.ID,
 		&i.AuthorID,
+		&i.Slug,
 		&i.Title,
+		&i.Subtitle,
+		&i.Tags,
 		&i.Body,
 		&i.Status,
 		&i.CreatedAt,
