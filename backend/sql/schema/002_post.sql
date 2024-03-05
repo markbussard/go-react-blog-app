@@ -4,10 +4,19 @@ CREATE TYPE post_status AS ENUM (
   'PUBLISHED'
 );
 
+CREATE TYPE post_tag AS ENUM (
+  'TECHNOLOGY',
+  'SCIENCE',
+  'PROGRAMMING'
+);
+
 CREATE TABLE post (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   author_id uuid NOT NULL REFERENCES "user"(id),
-  title varchar(255) NOT NULL,
+  slug VARCHAR(88) NOT NULL UNIQUE,
+  title varchar(75) NOT NULL,
+  subtitle varchar(175) NOT NULL,
+  tags post_tag[],
   body text NOT NULL,
   status post_status NOT NULL,
   created_at timestamp NOT NULL DEFAULT now(),
